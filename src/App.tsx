@@ -8,6 +8,17 @@ import {
   RangeSlider,
   SegmentedToggle,
 } from './components/Primitives';
+import { CompareSlider, IMG_SIZE_CLASS } from './components/CompareSlider';
+import { HistoryPanel } from './components/HistoryPanel';
+import { resizeBase64, type Img } from './lib/image';
+import {
+  addHistory,
+  clearHistory,
+  getHistoryBlobs,
+  listHistory,
+  removeHistory,
+  type HistoryMeta,
+} from './lib/history';
 
 const GARMENT_TYPES = ['blouse', 'shirt', 'dress', 'jacket', 'hoodie', 't-shirt', 'skirt', 'pants'];
 const GARMENT_LABELS: Record<string, string> = {
@@ -23,6 +34,7 @@ const GARMENT_LABELS: Record<string, string> = {
 
 type SupportedRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
 type ImageProvider = 'gemini' | 'openai';
+type ResultState = Img & { sketch: Img | null };
 
 /** Sanitize a filename for safe download */
 function sanitizeFilename(name: string, ext: string = 'png'): string {
@@ -34,7 +46,7 @@ function sanitizeFilename(name: string, ext: string = 'png'): string {
 }
 
 const SiriLoading = () => (
-  <div className="relative w-48 h-48 flex items-center justify-center">
+  <div className="relative w-40 h-40 sm:w-48 sm:h-48 flex items-center justify-center">
     <div className="absolute inset-0 blur-[40px] opacity-60">
       <div className="absolute top-1/4 left-1/4 w-32 h-32 bg-purple-500 rounded-full animate-siri-blob-1" />
       <div className="absolute top-1/3 right-1/4 w-28 h-28 bg-blue-400 rounded-full animate-siri-blob-2" />
@@ -57,11 +69,16 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isEnhancing, setIsEnhancing] = useState(false);
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<ResultState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState<SupportedRatio>('3:4');
   const [showControls, setShowControls] = useState(true);
   const [provider, setProviderState] = useState<ImageProvider>('gemini');
+  const [viewMode, setViewMode] = useState<'result' | 'compare'>('result');
+
+  const [history, setHistory] = useState<HistoryMeta[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [activeHistoryId, setActiveHistoryId] = useState<string | null>(null);
 
   const [isDraggingSketch, setIsDraggingSketch] = useState(false);
   const [isDraggingTexture, setIsDraggingTexture] = useState(false);
@@ -69,6 +86,10 @@ export default function App() {
   useEffect(() => {
     setProvider(provider);
   }, [provider]);
+
+  useEffect(() => {
+    listHistory().then(setHistory).catch(() => {});
+  }, []);
 
   useEffect(() => {
     const id = 'ios-design-system-v6';
@@ -119,10 +140,7 @@ export default function App() {
 
   const detectRatioFromMedia = (media: any) => {
     const img = new Image();
-    img.onload = () => {
-      const detected = getClosestRatio(img.width, img.height);
-      setAspectRatio(detected);
-    };
+    img.onload = () => setAspectRatio(getClosestRatio(img.width, img.height));
     img.src = `data:${media.mimeType};base64,${media.base64}`;
   };
 
@@ -167,6 +185,7 @@ export default function App() {
       setSketchMedia(media);
       detectRatioFromMedia(media);
       setResult(null);
+      setActiveHistoryId(null);
     } catch (e) {
       console.log('Selection cancelled');
     }
@@ -232,6 +251,21 @@ export default function App() {
     });
   };
 
+  const saveToHistory = async (res: Img, sketch: Img | null) => {
+    try {
+      const thumb = (await resizeBase64(res.base64, res.mimeType, 360, 0.75)).base64;
+      const id = crypto.randomUUID();
+      await addHistory(
+        { id, createdAt: Date.now(), provider, garmentType, aspectRatio, prompt: customPrompt, thumb },
+        { id, result: { base64: res.base64, mimeType: res.mimeType }, sketch }
+      );
+      setActiveHistoryId(id);
+      setHistory(await listHistory());
+    } catch (e) {
+      console.warn('Gagal menyimpan riwayat', e);
+    }
+  };
+
   const handleGenerate = async () => {
     setError(null);
     if (!sketchMedia && !customPrompt.trim()) {
@@ -265,8 +299,15 @@ export default function App() {
         referenceImageMediaIds: referenceIds.length > 0 ? referenceIds : undefined,
         aspectRatio,
       });
-      setResult(res);
+
+      const sketchSmall = sketchMedia
+        ? await resizeBase64(sketchMedia.base64, sketchMedia.mimeType, 1024, 0.85)
+        : null;
+
+      setResult({ base64: res.base64, mimeType: res.mimeType, sketch: sketchSmall });
+      setViewMode(sketchSmall ? 'compare' : 'result');
       setShowControls(false);
+      saveToHistory(res, sketchSmall);
     } catch (err: any) {
       setError(err.message || 'Gagal menghasilkan gambar.');
     } finally {
@@ -274,46 +315,102 @@ export default function App() {
     }
   };
 
+  const handleSelectHistory = async (id: string) => {
+    const meta = history.find((h) => h.id === id);
+    const blobs = await getHistoryBlobs(id).catch(() => null);
+    if (!meta || !blobs) return;
+    setResult({ ...blobs.result, sketch: blobs.sketch });
+    setViewMode(blobs.sketch ? 'compare' : 'result');
+    setAspectRatio(meta.aspectRatio as SupportedRatio);
+    setGarmentType(meta.garmentType);
+    setProviderState(meta.provider);
+    setCustomPrompt(meta.prompt);
+    setActiveHistoryId(id);
+    setShowHistory(false);
+    setShowControls(false);
+  };
+
+  const handleDeleteHistory = async (id: string) => {
+    await removeHistory(id).catch(() => {});
+    setHistory(await listHistory().catch(() => []));
+    if (activeHistoryId === id) setActiveHistoryId(null);
+  };
+
+  const handleClearHistory = async () => {
+    await clearHistory().catch(() => {});
+    setHistory([]);
+    setActiveHistoryId(null);
+  };
+
+  const openHistory = () => {
+    setShowHistory(true);
+    setShowControls(false);
+  };
+
+  const floatBtn =
+    'fixed top-3 sm:top-6 w-12 h-12 sm:w-14 sm:h-14 ios-glass rounded-full border border-white/20 flex items-center justify-center shadow-xl animate-pop-in hover:bg-white/10 transition-colors text-white z-30';
+
   return (
-    <div className="flex h-screen w-screen bg-[#000] canvas-container relative">
+    <div className="flex h-dvh w-screen bg-[#000] canvas-container relative">
       {/* Main Preview Area */}
-      <div className="flex-1 h-full flex items-center justify-center p-6 lg:p-12 relative overflow-hidden">
+      <div
+        className={`flex-1 min-w-0 h-full flex items-center justify-center px-3 pt-20 pb-4 sm:px-6 lg:px-12 lg:pt-24 lg:pb-10 relative overflow-hidden transition-[padding] duration-500 ${
+          showControls ? 'lg:pr-[408px]' : ''
+        }`}
+      >
+        {/* Toggle Hasil / Bandingkan */}
+        {result?.sketch && !isGenerating && (
+          <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 z-20 w-[210px] ios-glass rounded-[1.4rem] animate-pop-in">
+            <SegmentedToggle
+              value={viewMode}
+              onChange={(v) => setViewMode(v as 'result' | 'compare')}
+              items={[
+                { value: 'result', label: 'Hasil' },
+                { value: 'compare', label: 'Bandingkan' },
+              ]}
+            />
+          </div>
+        )}
+
         <div className="relative w-full h-full flex items-center justify-center">
           {result && !isGenerating ? (
-            <div className="relative w-full h-full flex items-center justify-center animate-pop-in">
-              <div
-                className="ios-shadow-lg rounded-[2.5rem] overflow-hidden border border-white/10 bg-black/40 backdrop-blur-xl max-w-full max-h-full flex items-center justify-center"
-                style={{ aspectRatio: aspectRatio.replace(':', '/') }}
-              >
+            <div className="relative w-fit max-w-full ios-shadow-lg rounded-[1.5rem] sm:rounded-[2.5rem] overflow-hidden border border-white/10 bg-black/40 animate-pop-in">
+              {viewMode === 'compare' && result.sketch ? (
+                <CompareSlider before={result.sketch} after={result} />
+              ) : (
                 <img
                   src={`data:${result.mimeType};base64,${result.base64}`}
-                  className="w-full h-full object-contain"
+                  className={IMG_SIZE_CLASS}
                   alt="Render Output"
                 />
-                <div className="absolute bottom-8 right-8 flex gap-3">
-                  <button
-                    onClick={() => setResult(null)}
-                    className="w-14 h-14 rounded-full ios-glass border border-white/20 flex items-center justify-center shadow-xl active:scale-90 transition-all hover:bg-white/10 text-white"
-                  >
-                    <span className="material-symbols-outlined text-[28px]">refresh</span>
-                  </button>
-                  <button
-                    onClick={() =>
-                      Flow.download({
-                        base64: result.base64,
-                        mimeType: result.mimeType,
-                        filename: sanitizeFilename(
-                          `render_${garmentType}`,
-                          result.mimeType === 'image/jpeg' ? 'jpg' : 'png'
-                        ),
-                      })
-                    }
-                    className="px-8 h-14 rounded-full bg-white text-black font-bold shadow-xl active:scale-95 transition-all flex items-center gap-2 hover:bg-gray-100"
-                  >
-                    <span className="material-symbols-outlined text-[24px]">download</span>
-                    Unduh
-                  </button>
-                </div>
+              )}
+              <div className="absolute bottom-3 right-3 sm:bottom-6 sm:right-6 flex gap-2 sm:gap-3">
+                <button
+                  onClick={() => {
+                    setResult(null);
+                    setActiveHistoryId(null);
+                    setShowControls(true);
+                  }}
+                  className="w-11 h-11 sm:w-14 sm:h-14 rounded-full ios-glass border border-white/20 flex items-center justify-center shadow-xl active:scale-90 transition-all hover:bg-white/10 text-white"
+                >
+                  <span className="material-symbols-outlined text-[24px] sm:text-[28px]">refresh</span>
+                </button>
+                <button
+                  onClick={() =>
+                    Flow.download({
+                      base64: result.base64,
+                      mimeType: result.mimeType,
+                      filename: sanitizeFilename(
+                        `render_${garmentType}`,
+                        result.mimeType === 'image/jpeg' ? 'jpg' : 'png'
+                      ),
+                    })
+                  }
+                  className="px-5 sm:px-8 h-11 sm:h-14 rounded-full bg-white text-black font-bold shadow-xl active:scale-95 transition-all flex items-center gap-2 hover:bg-gray-100 text-[14px] sm:text-[16px]"
+                >
+                  <span className="material-symbols-outlined text-[22px] sm:text-[24px]">download</span>
+                  Unduh
+                </button>
               </div>
             </div>
           ) : (
@@ -335,7 +432,7 @@ export default function App() {
               }}
             >
               <div
-                className={`ios-shadow-lg rounded-[2.5rem] overflow-hidden border border-dashed transition-all duration-500 flex flex-col items-center justify-center gap-4 max-w-full max-h-full 
+                className={`ios-shadow-lg rounded-[1.5rem] sm:rounded-[2.5rem] overflow-hidden border border-dashed transition-all duration-500 flex flex-col items-center justify-center gap-4 max-w-full max-h-full 
                   ${
                     sketchMedia
                       ? 'border-white/20 bg-black/20'
@@ -376,7 +473,7 @@ export default function App() {
                     </div>
                     <div className="text-center px-8">
                       <p
-                        className={`text-[18px] font-bold transition-colors ${
+                        className={`text-[16px] sm:text-[18px] font-bold transition-colors ${
                           isDraggingSketch ? 'text-white' : 'text-white/40'
                         }`}
                       >
@@ -393,11 +490,13 @@ export default function App() {
           )}
 
           {isGenerating && (
-            <div className="absolute inset-0 ios-glass z-50 flex flex-col items-center justify-center gap-8 rounded-[3rem] animate-pop-in overflow-hidden shadow-2xl">
+            <div className="absolute inset-0 ios-glass z-50 flex flex-col items-center justify-center gap-6 sm:gap-8 rounded-[1.5rem] sm:rounded-[3rem] animate-pop-in overflow-hidden shadow-2xl">
               <SiriLoading />
-              <div className="flex flex-col items-center gap-3 relative z-10 text-center">
+              <div className="flex flex-col items-center gap-3 relative z-10 text-center px-4">
                 <div className="flex flex-col items-center">
-                  <span className="text-[20px] font-bold tracking-tight text-white">Menghidupkan Konsep</span>
+                  <span className="text-[18px] sm:text-[20px] font-bold tracking-tight text-white">
+                    Menghidupkan Konsep
+                  </span>
                   <div className="h-[2px] w-24 bg-white/10 my-3 rounded-full overflow-hidden">
                     <div className="h-full bg-white animate-[shimmer_2s_infinite]" style={{ width: '40%' }} />
                   </div>
@@ -411,15 +510,18 @@ export default function App() {
         </div>
       </div>
 
-      {/* Control Panel */}
+      {/* Control Panel (bottom sheet di mobile, sidebar di desktop) */}
       <div
-        className={`fixed right-6 top-6 bottom-6 w-[360px] flex flex-col gap-4 z-40 transition-all duration-500 ease-in-out ${
-          showControls
-            ? 'translate-x-0 opacity-100'
-            : 'translate-x-[calc(100%+24px)] opacity-0 pointer-events-none'
-        }`}
+        className={`fixed z-40 flex flex-col gap-3 transition-all duration-500 ease-in-out
+          inset-x-3 bottom-3 max-h-[80dvh]
+          lg:inset-x-auto lg:right-6 lg:top-6 lg:bottom-6 lg:w-[360px] lg:max-h-none lg:gap-4
+          ${
+            showControls
+              ? 'translate-y-0 lg:translate-x-0 opacity-100'
+              : 'translate-y-[calc(100%+24px)] lg:translate-y-0 lg:translate-x-[calc(100%+24px)] opacity-0 pointer-events-none'
+          }`}
       >
-        <div className="flex-1 ios-glass rounded-[2.5rem] border border-white/10 ios-shadow-lg p-7 flex flex-col gap-6 overflow-y-auto no-scrollbar">
+        <div className="flex-1 min-h-0 ios-glass rounded-[2rem] lg:rounded-[2.5rem] border border-white/10 ios-shadow-lg p-5 sm:p-7 flex flex-col gap-6 overflow-y-auto no-scrollbar">
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
               <h1 className="text-[22px] font-bold tracking-tight text-white">Konfigurator</h1>
@@ -431,6 +533,39 @@ export default function App() {
             >
               <span className="material-symbols-outlined">close</span>
             </button>
+          </div>
+
+          {/* Sketsa: di mobile jadi tombol unggah, di semua layar ada tombol hapus */}
+          <div className={sketchMedia ? 'flex flex-col gap-1.5' : 'flex flex-col gap-1.5 lg:hidden'}>
+            <p className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase px-1">Sketsa Desain</p>
+            <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-[1.6rem]">
+              {sketchMedia ? (
+                <img
+                  src={`data:${sketchMedia.mimeType};base64,${sketchMedia.base64}`}
+                  className="w-12 h-12 rounded-xl object-cover"
+                  alt="Sketsa"
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-white/30">add_photo_alternate</span>
+                </div>
+              )}
+              <button
+                onClick={handleSelectSketch}
+                className="flex-1 min-w-0 text-left text-[14px] font-bold text-white/80 truncate"
+              >
+                {sketchMedia ? sketchMedia.name || 'Sketsa terpilih' : 'Unggah sketsa'}
+              </button>
+              {sketchMedia && (
+                <button
+                  onClick={() => setSketchMedia(null)}
+                  aria-label="Hapus sketsa"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 text-white/30 hover:text-red-400 transition-all"
+                >
+                  <span className="material-symbols-outlined text-[20px]">close</span>
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="flex flex-col gap-3">
@@ -455,6 +590,7 @@ export default function App() {
                 items={[
                   { value: '1:1', label: '1:1' },
                   { value: '3:4', label: '3:4' },
+                  { value: '4:3', label: '4:3' },
                   { value: '9:16', label: '9:16' },
                   { value: '16:9', label: '16:9' },
                 ]}
@@ -462,9 +598,7 @@ export default function App() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <p className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase px-1">
-                Model Gambar
-              </p>
+              <p className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase px-1">Model Gambar</p>
               <SegmentedToggle
                 value={provider}
                 onChange={(v) => setProviderState(v as ImageProvider)}
@@ -491,7 +625,7 @@ export default function App() {
                 const file = e.dataTransfer.files[0];
                 if (file) processDroppedFile(file, 'texture');
               }}
-              className={`group relative h-40 rounded-[2.2rem] border overflow-hidden transition-all
+              className={`group relative h-32 sm:h-40 rounded-[2rem] border overflow-hidden transition-all
                 ${textureMedia ? 'bg-black border-white/10' : 'bg-white/5 hover:bg-white/10 cursor-pointer border-white/10'}
                 ${isDraggingTexture ? 'border-white/60 bg-white/10 scale-[1.02]' : ''}
                 ${isUploading ? 'animate-pulse-soft' : ''}
@@ -563,7 +697,7 @@ export default function App() {
             )}
           </div>
 
-          <div className="flex flex-col gap-3 pb-4">
+          <div className="flex flex-col gap-3 pb-2">
             <div className="flex items-center justify-between px-1">
               <SectionLabel>Deskripsi Detail</SectionLabel>
               {customPrompt.length > 5 && (
@@ -598,12 +732,27 @@ export default function App() {
         </PillButton>
       </div>
 
-      {!showControls && !isGenerating && (
-        <button
-          onClick={() => setShowControls(true)}
-          className="fixed right-6 top-6 w-14 h-14 ios-glass rounded-full border border-white/20 flex items-center justify-center shadow-xl animate-pop-in hover:bg-white/10 transition-colors text-white"
-        >
-          <span className="material-symbols-outlined text-[28px]">tune</span>
+      {/* Riwayat */}
+      <HistoryPanel
+        open={showHistory}
+        items={history}
+        activeId={activeHistoryId}
+        garmentLabels={GARMENT_LABELS}
+        onClose={() => setShowHistory(false)}
+        onSelect={handleSelectHistory}
+        onDelete={handleDeleteHistory}
+        onClear={handleClearHistory}
+      />
+
+      {/* Tombol melayang */}
+      {!showHistory && !isGenerating && (
+        <button onClick={openHistory} aria-label="Riwayat" className={`${floatBtn} left-3 sm:left-6`}>
+          <span className="material-symbols-outlined text-[24px] sm:text-[28px]">history</span>
+        </button>
+      )}
+      {!showControls && !isGenerating && !showHistory && (
+        <button onClick={() => setShowControls(true)} aria-label="Pengaturan" className={`${floatBtn} right-3 sm:right-6`}>
+          <span className="material-symbols-outlined text-[24px] sm:text-[28px]">tune</span>
         </button>
       )}
     </div>
