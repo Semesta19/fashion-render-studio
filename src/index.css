@@ -12,3 +12,36 @@
   0% { transform: translateX(-100%); }
   100% { transform: translateX(250%); }
 }
+
+/* ---- Tema terang / gelap ---- */
+@theme inline {
+  --color-fg: var(--fg);
+  --color-bg: var(--bg);
+}
+:root {
+  --fg: #ffffff;
+  --bg: #000000;
+  --glass: rgba(20, 20, 22, 0.82);
+  --card: rgba(44, 44, 46, 0.6);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --shadow: rgba(0, 0, 0, 0.6);
+  --dot: rgba(255, 255, 255, 0.03);
+  --track: rgba(255, 255, 255, 0.15);
+  --thumb: #ffffff;
+  color-scheme: dark;
+}
+:root[data-theme='light'] {
+  --fg: #0b0b0f;
+  --bg: #f3f3f6;
+  --glass: rgba(255, 255, 255, 0.82);
+  --card: rgba(255, 255, 255, 0.7);
+  --card-border: rgba(0, 0, 0, 0.08);
+  --shadow: rgba(0, 0, 0, 0.14);
+  --dot: rgba(0, 0, 0, 0.06);
+  --track: rgba(0, 0, 0, 0.15);
+  --thumb: #0b0b0f;
+  color-scheme: light;
+}
+body {
+  background: var(--bg);
+}

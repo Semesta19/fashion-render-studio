@@ -14,7 +14,7 @@ export const HistoryPanel: React.FC<{
   onClear: () => void;
 }> = ({ open, items, activeId, garmentLabels, onClose, onSelect, onDelete, onClear }) => (
   <div
-    className={`fixed z-50 flex flex-col gap-4 ios-glass border border-white/10 ios-shadow-lg rounded-[2rem] p-5
+    className={`fixed z-50 flex flex-col gap-4 ios-glass border border-fg/10 ios-shadow-lg rounded-[2rem] p-5
       transition-all duration-500 ease-in-out
       inset-x-3 bottom-3 max-h-[75dvh]
       lg:inset-x-auto lg:left-6 lg:top-6 lg:bottom-6 lg:w-[340px] lg:max-h-none
@@ -26,14 +26,14 @@ export const HistoryPanel: React.FC<{
   >
     <div className="flex items-center justify-between">
       <div className="flex flex-col">
-        <h2 className="text-[20px] font-bold tracking-tight text-white">Riwayat</h2>
-        <span className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em]">
+        <h2 className="text-[20px] font-bold tracking-tight text-fg">Riwayat</h2>
+        <span className="text-[10px] font-bold text-fg/20 uppercase tracking-[0.2em]">
           {items.length} gambar tersimpan
         </span>
       </div>
       <button
         onClick={onClose}
-        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-white/30 hover:text-white transition-all"
+        className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-fg/10 text-fg/30 hover:text-fg transition-all"
       >
         <span className="material-symbols-outlined">close</span>
       </button>
@@ -41,8 +41,8 @@ export const HistoryPanel: React.FC<{
 
     {items.length === 0 ? (
       <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10 text-center">
-        <span className="material-symbols-outlined text-[40px] text-white/20">history</span>
-        <p className="text-[13px] font-bold text-white/30">Belum ada riwayat render</p>
+        <span className="material-symbols-outlined text-[40px] text-fg/20">history</span>
+        <p className="text-[13px] font-bold text-fg/30">Belum ada riwayat render</p>
       </div>
     ) : (
       <>
@@ -51,8 +51,8 @@ export const HistoryPanel: React.FC<{
             <div key={it.id} className="group relative">
               <button
                 onClick={() => onSelect(it.id)}
-                className={`w-full rounded-[1.4rem] overflow-hidden border transition-all active:scale-[0.97] text-left bg-black/40
-                  ${activeId === it.id ? 'border-white ring-2 ring-white/30' : 'border-white/10 hover:border-white/40'}`}
+                className={`w-full rounded-[1.4rem] overflow-hidden border transition-all active:scale-[0.97] text-left bg-bg/40
+                  ${activeId === it.id ? 'border-fg ring-2 ring-fg/30' : 'border-fg/10 hover:border-fg/40'}`}
               >
                 <div className="w-full aspect-[3/4] bg-black flex items-center justify-center">
                   <img
@@ -63,10 +63,10 @@ export const HistoryPanel: React.FC<{
                   />
                 </div>
                 <div className="px-3 py-2">
-                  <p className="text-[12px] font-bold text-white truncate">
+                  <p className="text-[12px] font-bold text-fg truncate">
                     {garmentLabels[it.garmentType] || it.garmentType}
                   </p>
-                  <p className="text-[10px] font-bold text-white/30 uppercase tracking-wide truncate">
+                  <p className="text-[10px] font-bold text-fg/30 uppercase tracking-wide truncate">
                     {PROVIDER_LABEL[it.provider] ?? it.provider.replace(/^kie:/, '')} ·{' '}
                     {new Date(it.createdAt).toLocaleString('id-ID', {
                       day: '2-digit',
@@ -80,7 +80,7 @@ export const HistoryPanel: React.FC<{
               <button
                 onClick={() => onDelete(it.id)}
                 aria-label="Hapus"
-                className="absolute top-2 right-2 w-8 h-8 rounded-full ios-glass border border-white/20 flex items-center justify-center text-white/70 hover:text-red-400 transition-all lg:opacity-0 lg:group-hover:opacity-100"
+                className="absolute top-2 right-2 w-8 h-8 rounded-full ios-glass border border-fg/20 flex items-center justify-center text-fg/70 hover:text-red-400 transition-all lg:opacity-0 lg:group-hover:opacity-100"
               >
                 <span className="material-symbols-outlined text-[18px]">delete</span>
               </button>
@@ -89,7 +89,7 @@ export const HistoryPanel: React.FC<{
         </div>
         <button
           onClick={() => window.confirm('Hapus semua riwayat?') && onClear()}
-          className="text-[10px] font-bold text-white/20 hover:text-red-400 transition-colors uppercase tracking-widest self-center"
+          className="text-[10px] font-bold text-fg/20 hover:text-red-400 transition-colors uppercase tracking-widest self-center"
         >
           Hapus Semua Riwayat
         </button>

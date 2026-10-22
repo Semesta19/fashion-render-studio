@@ -11,6 +11,7 @@ import {
 import { CompareSlider, IMG_SIZE_CLASS } from './components/CompareSlider';
 import { HistoryPanel } from './components/HistoryPanel';
 import { resizeBase64, type Img } from './lib/image';
+import { buildPrompt, PRESENTATION_LABELS, type Presentation } from './lib/prompt';
 import {
   addHistory,
   clearHistory,
@@ -53,8 +54,8 @@ const SiriLoading = () => (
       <div className="absolute bottom-1/4 left-1/3 w-36 h-36 bg-cyan-400 rounded-full animate-siri-blob-3" />
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-pink-500 rounded-full animate-siri-blob-4" />
     </div>
-    <div className="relative w-20 h-20 rounded-full bg-white/10 backdrop-blur-3xl border border-white/30 flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.1)]">
-      <span className="material-symbols-outlined text-white text-[32px] animate-pulse">auto_awesome</span>
+    <div className="relative w-20 h-20 rounded-full bg-fg/10 backdrop-blur-3xl border border-fg/30 flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.1)]">
+      <span className="material-symbols-outlined text-fg text-[32px] animate-pulse">auto_awesome</span>
     </div>
   </div>
 );
@@ -63,6 +64,7 @@ export default function App() {
   const [garmentType, setGarmentType] = useState('blouse');
   const [textureRepeat, setTextureRepeat] = useState(1);
   const [mirrorTiling, setMirrorTiling] = useState(false);
+  const [presentation, setPresentation] = useState<Presentation>('ghost');
   const [textureMedia, setTextureMedia] = useState<any>(null);
   const [sketchMedia, setSketchMedia] = useState<any>(null);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -76,6 +78,9 @@ export default function App() {
   const [provider, setProviderState] = useState<ImageProvider>('');
   const [models, setModels] = useState<ModelOption[]>([]);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [theme, setTheme] = useState<'dark' | 'light'>(
+    () => (document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark')
+  );
   const [viewMode, setViewMode] = useState<'result' | 'compare'>('result');
 
   const [history, setHistory] = useState<HistoryMeta[]>([]);
@@ -88,6 +93,11 @@ export default function App() {
   useEffect(() => {
     setProvider(provider);
   }, [provider]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    try { localStorage.setItem('theme', theme); } catch { /* abaikan */ }
+  }, [theme]);
 
   useEffect(() => {
     listHistory().then(setHistory).catch(() => {});
@@ -112,10 +122,10 @@ export default function App() {
     const style = document.createElement('style');
     style.id = id;
     style.textContent = `
-      .ios-glass { backdrop-filter: blur(40px) saturate(210%); -webkit-backdrop-filter: blur(40px) saturate(210%); background-color: rgba(20, 20, 22, 0.82); }
-      .ios-card { background: rgba(44, 44, 46, 0.6); border: 0.5px solid rgba(255, 255, 255, 0.1); }
-      .ios-shadow-lg { box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6); }
-      .canvas-container { background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px); background-size: 40px 40px; }
+      .ios-glass { backdrop-filter: blur(40px) saturate(210%); -webkit-backdrop-filter: blur(40px) saturate(210%); background-color: var(--glass); }
+      .ios-card { background: var(--card); border: 0.5px solid var(--card-border); }
+      .ios-shadow-lg { box-shadow: 0 12px 40px var(--shadow); }
+      .canvas-container { background-image: radial-gradient(var(--dot) 1px, transparent 1px); background-size: 40px 40px; }
 
       @keyframes popIn { from { transform: scale(0.95) translateY(12px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
       .animate-pop-in { animation: popIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards; }
@@ -130,11 +140,11 @@ export default function App() {
       .animate-siri-blob-2 { animation: siri-blob-2 10s infinite ease-in-out; }
       .animate-siri-blob-3 { animation: siri-blob-3 12s infinite ease-in-out; }
       .animate-siri-blob-4 { animation: siri-blob-4 6s infinite ease-in-out; }
-      html, body, #root { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
+      html, body, #root { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif; -webkit-font-smoothing: antialiased; overflow: hidden; }
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 26px; width: 26px; border-radius: 50%; background: white; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.4); border: 3px solid rgba(0,0,0,0.1); margin-top: -11px; }
-      input[type=range]::-webkit-slider-runnable-track { height: 4px; background: rgba(255,255,255,0.15); border-radius: 2px; }
+      input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 26px; width: 26px; border-radius: 50%; background: var(--thumb); cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.4); border: 3px solid rgba(0,0,0,0.1); margin-top: -11px; }
+      input[type=range]::-webkit-slider-runnable-track { height: 4px; background: var(--track); border-radius: 2px; }
     `;
     document.head.appendChild(style);
   }, []);
@@ -220,10 +230,11 @@ export default function App() {
     setIsEnhancing(true);
     try {
       const { text } = await Flow.generate.text(
-        `Expand this fashion design idea into a more professional prompt for AI. 
-        Focus on silhouette, stitching details, and fabric properties. 
-        Keep it concise. Original idea: ${customPrompt}`,
-        { systemInstruction: 'You are a professional fashion concept artist.' }
+        `Rewrite this fashion design note as concise, precise designer notes in English (max 70 words). ` +
+          `Describe only: fabric type and finish, drape, fit, and construction details (seams, panels, closures, trims). ` +
+          `Never mention background, setting, model, pose, lighting or camera. ` +
+          `Do not invent details that were not in the original. Output only the notes, no preface. Original: ${customPrompt}`,
+        { systemInstruction: 'You are a technical fashion designer writing precise garment specifications.' }
       );
       setCustomPrompt(text.trim());
     } catch (err) {
@@ -244,6 +255,10 @@ export default function App() {
         const ctx = canvas.getContext('2d');
         if (!ctx) return reject('Canvas failed');
         const size = canvas.width / textureRepeat;
+        // potong persegi dari tengah supaya motif tidak melar
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
         for (let y = 0; y < textureRepeat; y++) {
           for (let x = 0; x < textureRepeat; x++) {
             ctx.save();
@@ -252,9 +267,9 @@ export default function App() {
               const flipX = x % 2 === 1;
               const flipY = y % 2 === 1;
               ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-              ctx.drawImage(img, flipX ? -size : 0, flipY ? -size : 0, size, size);
+              ctx.drawImage(img, sx, sy, side, side, flipX ? -size : 0, flipY ? -size : 0, size, size);
             } else {
-              ctx.drawImage(img, 0, 0, size, size);
+              ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
             }
             ctx.restore();
           }
@@ -292,7 +307,6 @@ export default function App() {
       let referenceIds: string[] = [];
       if (sketchMedia) referenceIds.push(sketchMedia.mediaId);
 
-      let textureInfo = '';
       if (textureMedia) {
         const processedBase64 = await processTiledTexture();
         const uploaded = await Flow.upload({
@@ -301,14 +315,17 @@ export default function App() {
           name: 'Reference Pattern',
         });
         referenceIds.push(uploaded.mediaId);
-        textureInfo = `Utilizing the provided pattern reference.`;
       }
 
-      const modePrefix = sketchMedia
-        ? `Fashion photography, photorealistic studio render of a ${garmentType}. Strictly follow the layout of the reference sketch.`
-        : `Studio fashion photography of a ${garmentType}. Professional model lighting.`;
-
-      const finalPrompt = `${modePrefix} ${textureInfo} 8k, ultra-detailed fabric, professional studio setup. ${customPrompt}`;
+      const finalPrompt = buildPrompt({
+        garmentType,
+        hasSketch: !!sketchMedia,
+        hasTexture: !!textureMedia,
+        repeat: textureRepeat,
+        mirrored: mirrorTiling,
+        presentation,
+        userNotes: customPrompt,
+      });
 
       const res = await Flow.generate.image({
         prompt: finalPrompt,
@@ -369,10 +386,10 @@ export default function App() {
   };
 
   const floatBtn =
-    'fixed top-3 sm:top-6 w-12 h-12 sm:w-14 sm:h-14 ios-glass rounded-full border border-white/20 flex items-center justify-center shadow-xl animate-pop-in hover:bg-white/10 transition-colors text-white z-30';
+    'fixed top-3 sm:top-6 w-12 h-12 sm:w-14 sm:h-14 ios-glass rounded-full border border-fg/20 flex items-center justify-center shadow-xl animate-pop-in hover:bg-fg/10 transition-colors text-fg z-30';
 
   return (
-    <div className="flex h-dvh w-screen bg-[#000] canvas-container relative">
+    <div className="flex h-dvh w-screen bg-bg canvas-container relative">
       {/* Main Preview Area */}
       <div
         className={`flex-1 min-w-0 h-full flex items-center justify-center px-3 pt-20 pb-4 sm:px-6 lg:px-12 lg:pt-24 lg:pb-10 relative overflow-hidden transition-[padding] duration-500 ${
@@ -395,7 +412,7 @@ export default function App() {
 
         <div className="relative w-full h-full flex items-center justify-center">
           {result && !isGenerating ? (
-            <div className="relative w-fit max-w-full ios-shadow-lg rounded-[1.5rem] sm:rounded-[2.5rem] overflow-hidden border border-white/10 bg-black/40 animate-pop-in">
+            <div className="relative w-fit max-w-full ios-shadow-lg rounded-[1.5rem] sm:rounded-[2.5rem] overflow-hidden border border-fg/10 bg-bg/40 animate-pop-in">
               {viewMode === 'compare' && result.sketch ? (
                 <CompareSlider before={result.sketch} after={result} />
               ) : (
@@ -412,7 +429,7 @@ export default function App() {
                     setActiveHistoryId(null);
                     setShowControls(true);
                   }}
-                  className="w-11 h-11 sm:w-14 sm:h-14 rounded-full ios-glass border border-white/20 flex items-center justify-center shadow-xl active:scale-90 transition-all hover:bg-white/10 text-white"
+                  className="w-11 h-11 sm:w-14 sm:h-14 rounded-full ios-glass border border-fg/20 flex items-center justify-center shadow-xl active:scale-90 transition-all hover:bg-fg/10 text-fg"
                 >
                   <span className="material-symbols-outlined text-[24px] sm:text-[28px]">refresh</span>
                 </button>
@@ -427,7 +444,7 @@ export default function App() {
                       ),
                     })
                   }
-                  className="px-5 sm:px-8 h-11 sm:h-14 rounded-full bg-white text-black font-bold shadow-xl active:scale-95 transition-all flex items-center gap-2 hover:bg-gray-100 text-[14px] sm:text-[16px]"
+                  className="px-5 sm:px-8 h-11 sm:h-14 rounded-full bg-fg text-bg font-bold shadow-xl active:scale-95 transition-all flex items-center gap-2 hover:opacity-90 text-[14px] sm:text-[16px]"
                 >
                   <span className="material-symbols-outlined text-[22px] sm:text-[24px]">download</span>
                   Unduh
@@ -456,18 +473,18 @@ export default function App() {
                 className={`ios-shadow-lg rounded-[1.5rem] sm:rounded-[2.5rem] overflow-hidden border border-dashed transition-all duration-500 flex flex-col items-center justify-center gap-4 max-w-full max-h-full 
                   ${
                     sketchMedia
-                      ? 'border-white/20 bg-black/20'
-                      : 'border-white/10 hover:border-white/30 hover:bg-white/10 w-full h-full lg:w-2/3 lg:h-3/4'
+                      ? 'border-fg/20 bg-bg/20'
+                      : 'border-fg/10 hover:border-fg/30 hover:bg-fg/10 w-full h-full lg:w-2/3 lg:h-3/4'
                   }
-                  ${isDraggingSketch ? 'border-white/60 bg-white/5 ring-4 ring-white/5' : ''}
-                  ${isUploading ? 'animate-pulse-soft border-white/40' : ''}
+                  ${isDraggingSketch ? 'border-fg/60 bg-fg/5 ring-4 ring-fg/5' : ''}
+                  ${isUploading ? 'animate-pulse-soft border-fg/40' : ''}
                 `}
                 style={sketchMedia ? { aspectRatio: aspectRatio.replace(':', '/') } : {}}
               >
                 {isUploading ? (
                   <div className="flex flex-col items-center gap-4 animate-pop-in">
-                    <span className="material-symbols-outlined text-[48px] text-white animate-spin">sync</span>
-                    <p className="text-[12px] font-bold text-white/40 uppercase tracking-[0.2em]">
+                    <span className="material-symbols-outlined text-[48px] text-fg animate-spin">sync</span>
+                    <p className="text-[12px] font-bold text-fg/40 uppercase tracking-[0.2em]">
                       Memproses sketsa...
                     </p>
                   </div>
@@ -480,13 +497,13 @@ export default function App() {
                 ) : (
                   <div className="flex flex-col items-center gap-4 animate-pop-in">
                     <div
-                      className={`w-20 h-20 rounded-full bg-white/5 flex items-center justify-center border border-white/10 group-hover:scale-110 transition-transform ${
-                        isDraggingSketch ? 'scale-125 border-white/40' : ''
+                      className={`w-20 h-20 rounded-full bg-fg/5 flex items-center justify-center border border-fg/10 group-hover:scale-110 transition-transform ${
+                        isDraggingSketch ? 'scale-125 border-fg/40' : ''
                       }`}
                     >
                       <span
                         className={`material-symbols-outlined text-[40px] transition-colors ${
-                          isDraggingSketch ? 'text-white' : 'text-white/20'
+                          isDraggingSketch ? 'text-fg' : 'text-fg/20'
                         }`}
                       >
                         {isDraggingSketch ? 'download' : 'add_photo_alternate'}
@@ -495,12 +512,12 @@ export default function App() {
                     <div className="text-center px-8">
                       <p
                         className={`text-[16px] sm:text-[18px] font-bold transition-colors ${
-                          isDraggingSketch ? 'text-white' : 'text-white/40'
+                          isDraggingSketch ? 'text-fg' : 'text-fg/40'
                         }`}
                       >
                         {isDraggingSketch ? 'Lepas untuk Mengunggah' : 'Unggah Sketsa Desain'}
                       </p>
-                      <p className="text-[12px] text-white/20 font-medium tracking-wide mt-1">
+                      <p className="text-[12px] text-fg/20 font-medium tracking-wide mt-1">
                         Gunakan foto sketsa tangan atau render 3D
                       </p>
                     </div>
@@ -515,14 +532,14 @@ export default function App() {
               <SiriLoading />
               <div className="flex flex-col items-center gap-3 relative z-10 text-center px-4">
                 <div className="flex flex-col items-center">
-                  <span className="text-[18px] sm:text-[20px] font-bold tracking-tight text-white">
+                  <span className="text-[18px] sm:text-[20px] font-bold tracking-tight text-fg">
                     Menghidupkan Konsep
                   </span>
-                  <div className="h-[2px] w-24 bg-white/10 my-3 rounded-full overflow-hidden">
-                    <div className="h-full bg-white animate-[shimmer_2s_infinite]" style={{ width: '40%' }} />
+                  <div className="h-[2px] w-24 bg-fg/10 my-3 rounded-full overflow-hidden">
+                    <div className="h-full bg-fg animate-[shimmer_2s_infinite]" style={{ width: '40%' }} />
                   </div>
                 </div>
-                <span className="text-[11px] font-bold text-white/30 uppercase tracking-[0.2em] max-w-[220px] leading-relaxed">
+                <span className="text-[11px] font-bold text-fg/30 uppercase tracking-[0.2em] max-w-[220px] leading-relaxed">
                   AI sedang memproses tekstur dan pencahayaan studio...
                 </span>
               </div>
@@ -542,15 +559,15 @@ export default function App() {
               : 'translate-y-[calc(100%+24px)] lg:translate-y-0 lg:translate-x-[calc(100%+24px)] opacity-0 pointer-events-none'
           }`}
       >
-        <div className="flex-1 min-h-0 ios-glass rounded-[2rem] lg:rounded-[2.5rem] border border-white/10 ios-shadow-lg p-5 sm:p-7 flex flex-col gap-6 overflow-y-auto no-scrollbar">
+        <div className="flex-1 min-h-0 ios-glass rounded-[2rem] lg:rounded-[2.5rem] border border-fg/10 ios-shadow-lg p-5 sm:p-7 flex flex-col gap-6 overflow-y-auto no-scrollbar">
           <div className="flex items-center justify-between">
             <div className="flex flex-col">
-              <h1 className="text-[22px] font-bold tracking-tight text-white">Konfigurator</h1>
-              <span className="text-[10px] font-bold text-white/20 uppercase tracking-[0.2em]">Studio Mode</span>
+              <h1 className="text-[22px] font-bold tracking-tight text-fg">Konfigurator</h1>
+              <span className="text-[10px] font-bold text-fg/20 uppercase tracking-[0.2em]">Studio Mode</span>
             </div>
             <button
               onClick={() => setShowControls(false)}
-              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 text-white/30 hover:text-white transition-all"
+              className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-fg/10 text-fg/30 hover:text-fg transition-all"
             >
               <span className="material-symbols-outlined">close</span>
             </button>
@@ -558,8 +575,8 @@ export default function App() {
 
           {/* Sketsa: di mobile jadi tombol unggah, di semua layar ada tombol hapus */}
           <div className={sketchMedia ? 'flex flex-col gap-1.5' : 'flex flex-col gap-1.5 lg:hidden'}>
-            <p className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase px-1">Sketsa Desain</p>
-            <div className="flex items-center gap-3 p-3 bg-white/5 border border-white/5 rounded-[1.6rem]">
+            <p className="text-[10px] font-bold text-fg/25 tracking-[0.1em] uppercase px-1">Sketsa Desain</p>
+            <div className="flex items-center gap-3 p-3 bg-fg/5 border border-fg/5 rounded-[1.6rem]">
               {sketchMedia ? (
                 <img
                   src={`data:${sketchMedia.mimeType};base64,${sketchMedia.base64}`}
@@ -567,13 +584,13 @@ export default function App() {
                   alt="Sketsa"
                 />
               ) : (
-                <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-white/30">add_photo_alternate</span>
+                <div className="w-12 h-12 rounded-xl bg-fg/5 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-fg/30">add_photo_alternate</span>
                 </div>
               )}
               <button
                 onClick={handleSelectSketch}
-                className="flex-1 min-w-0 text-left text-[14px] font-bold text-white/80 truncate"
+                className="flex-1 min-w-0 text-left text-[14px] font-bold text-fg/80 truncate"
               >
                 {sketchMedia ? sketchMedia.name || 'Sketsa terpilih' : 'Unggah sketsa'}
               </button>
@@ -581,7 +598,7 @@ export default function App() {
                 <button
                   onClick={() => setSketchMedia(null)}
                   aria-label="Hapus sketsa"
-                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 text-white/30 hover:text-red-400 transition-all"
+                  className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-fg/10 text-fg/30 hover:text-red-400 transition-all"
                 >
                   <span className="material-symbols-outlined text-[20px]">close</span>
                 </button>
@@ -602,7 +619,7 @@ export default function App() {
             />
 
             <div className="flex flex-col gap-1.5">
-              <p className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase px-1">
+              <p className="text-[10px] font-bold text-fg/25 tracking-[0.1em] uppercase px-1">
                 {sketchMedia ? 'Rasio (Terkunci ke Sketsa)' : 'Pilih Rasio Aspek'}
               </p>
               <SegmentedToggle
@@ -619,7 +636,7 @@ export default function App() {
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <p className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase px-1">Model Gambar</p>
+              <p className="text-[10px] font-bold text-fg/25 tracking-[0.1em] uppercase px-1">Model Gambar</p>
               <FieldDropdown
                 label="Pilih model"
                 value={modelLabel(provider)}
@@ -630,6 +647,18 @@ export default function App() {
                 }}
               />
               {modelsError && <p className="text-[11px] text-red-300/80 px-1">{modelsError}</p>}
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[10px] font-bold text-fg/25 tracking-[0.1em] uppercase px-1">Tampilan Hasil</p>
+              <SegmentedToggle
+                value={presentation}
+                onChange={(v) => setPresentation(v as Presentation)}
+                items={(Object.keys(PRESENTATION_LABELS) as Presentation[]).map((k) => ({
+                  value: k,
+                  label: PRESENTATION_LABELS[k],
+                }))}
+              />
             </div>
           </div>
 
@@ -649,14 +678,14 @@ export default function App() {
                 if (file) processDroppedFile(file, 'texture');
               }}
               className={`group relative h-32 sm:h-40 rounded-[2rem] border overflow-hidden transition-all
-                ${textureMedia ? 'bg-black border-white/10' : 'bg-white/5 hover:bg-white/10 cursor-pointer border-white/10'}
-                ${isDraggingTexture ? 'border-white/60 bg-white/10 scale-[1.02]' : ''}
+                ${textureMedia ? 'bg-black border-fg/10' : 'bg-fg/5 hover:bg-fg/10 cursor-pointer border-fg/10'}
+                ${isDraggingTexture ? 'border-fg/60 bg-fg/10 scale-[1.02]' : ''}
                 ${isUploading ? 'animate-pulse-soft' : ''}
               `}
             >
               {isUploading ? (
                 <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-                  <span className="material-symbols-outlined text-[32px] text-white animate-spin">sync</span>
+                  <span className="material-symbols-outlined text-[32px] text-fg animate-spin">sync</span>
                 </div>
               ) : textureMedia ? (
                 <div
@@ -671,14 +700,14 @@ export default function App() {
                 <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                   <span
                     className={`material-symbols-outlined text-[32px] transition-colors ${
-                      isDraggingTexture ? 'text-white' : 'text-white/20'
+                      isDraggingTexture ? 'text-fg' : 'text-fg/20'
                     }`}
                   >
                     {isDraggingTexture ? 'download' : 'texture'}
                   </span>
                   <span
                     className={`text-[10px] font-bold uppercase tracking-widest transition-colors ${
-                      isDraggingTexture ? 'text-white' : 'text-white/20'
+                      isDraggingTexture ? 'text-fg' : 'text-fg/20'
                     }`}
                   >
                     Pilih Pola Kain
@@ -700,8 +729,8 @@ export default function App() {
                   className={`w-full h-[54px] rounded-[1.4rem] border transition-all flex items-center gap-3 px-5 font-bold text-[13px]
                     ${
                       mirrorTiling
-                        ? 'bg-white text-black border-white shadow-lg'
-                        : 'bg-white/5 text-white/40 border-white/10 hover:bg-white/10'
+                        ? 'bg-fg text-bg border-fg shadow-lg'
+                        : 'bg-fg/5 text-fg/40 border-fg/10 hover:bg-fg/10'
                     }
                   `}
                 >
@@ -712,7 +741,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setTextureMedia(null)}
-                  className="text-[10px] font-bold text-white/20 hover:text-red-400 transition-colors uppercase tracking-widest self-center pt-1"
+                  className="text-[10px] font-bold text-fg/20 hover:text-red-400 transition-colors uppercase tracking-widest self-center pt-1"
                 >
                   Hapus Tekstur
                 </button>
@@ -727,7 +756,7 @@ export default function App() {
                 <button
                   onClick={handleEnhancePrompt}
                   disabled={isEnhancing}
-                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-white/40 hover:text-white transition-all disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-fg/5 hover:bg-fg/10 text-fg/40 hover:text-fg transition-all disabled:opacity-50"
                 >
                   <span className={`material-symbols-outlined text-[16px] ${isEnhancing ? 'animate-spin' : ''}`}>
                     auto_awesome
@@ -771,6 +800,17 @@ export default function App() {
       {!showHistory && !isGenerating && (
         <button onClick={openHistory} aria-label="Riwayat" className={`${floatBtn} left-3 sm:left-6`}>
           <span className="material-symbols-outlined text-[24px] sm:text-[28px]">history</span>
+        </button>
+      )}
+      {!showHistory && !isGenerating && (
+        <button
+          onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))}
+          aria-label={theme === 'dark' ? 'Mode terang' : 'Mode gelap'}
+          className={`${floatBtn} left-[4.5rem] sm:left-[5.75rem]`}
+        >
+          <span className="material-symbols-outlined text-[24px] sm:text-[28px]">
+            {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+          </span>
         </button>
       )}
       {!showControls && !isGenerating && !showHistory && (

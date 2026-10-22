@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 
 export const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="flex items-center px-1">
-    <span className="text-[11px] font-extrabold text-white/25 tracking-[0.15em] uppercase">
+    <span className="text-[11px] font-extrabold text-fg/25 tracking-[0.15em] uppercase">
       {children}
     </span>
   </div>
@@ -17,9 +17,9 @@ export const PillButton: React.FC<{
   const base =
     'flex items-center gap-2 justify-center w-full h-[62px] rounded-[1.95rem] font-bold tracking-tight transition-all active:scale-[0.97] disabled:opacity-30 cursor-pointer select-none';
   const variants: Record<string, string> = {
-    filled: 'bg-white/10 text-white backdrop-blur-md',
-    outline: 'border border-white/20 text-white',
-    solid: 'bg-white text-black shadow-2xl',
+    filled: 'bg-fg/10 text-fg backdrop-blur-md',
+    outline: 'border border-fg/20 text-fg',
+    solid: 'bg-fg text-bg shadow-2xl',
   };
   return (
     <button className={`${base} ${variants[variant]}`} onClick={onClick} disabled={disabled}>
@@ -50,13 +50,13 @@ export const FieldDropdown: React.FC<{
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full text-left bg-white/5 border border-white/5 hover:border-white/10 hover:bg-white/10 transition-all rounded-[1.6rem] flex flex-col justify-center h-[68px] px-6 focus:outline-none"
+        className="w-full text-left bg-fg/5 border border-fg/5 hover:border-fg/10 hover:bg-fg/10 transition-all rounded-[1.6rem] flex flex-col justify-center h-[68px] px-6 focus:outline-none"
       >
-        <p className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase mb-0.5">{label}</p>
+        <p className="text-[10px] font-bold text-fg/25 tracking-[0.1em] uppercase mb-0.5">{label}</p>
         <div className="flex items-center justify-between">
-          <span className="text-[16px] font-bold text-white">{value}</span>
+          <span className="text-[16px] font-bold text-fg">{value}</span>
           <span
-            className={`material-symbols-outlined text-[22px] text-white/30 transition-transform duration-300 ${
+            className={`material-symbols-outlined text-[22px] text-fg/30 transition-transform duration-300 ${
               isOpen ? 'rotate-180' : ''
             }`}
           >
@@ -65,7 +65,7 @@ export const FieldDropdown: React.FC<{
         </div>
       </button>
       {isOpen && (
-        <div className="absolute z-50 top-[calc(100%+8px)] left-0 w-full ios-glass border border-white/10 rounded-[1.6rem] overflow-hidden shadow-2xl animate-pop-in origin-top">
+        <div className="absolute z-50 top-[calc(100%+8px)] left-0 w-full ios-glass border border-fg/10 rounded-[1.6rem] overflow-hidden shadow-2xl animate-pop-in origin-top">
           <div className="max-h-64 overflow-y-auto no-scrollbar">
             {options.map((opt) => (
               <button
@@ -76,7 +76,7 @@ export const FieldDropdown: React.FC<{
                   setIsOpen(false);
                 }}
                 className={`w-full text-left px-6 py-4 text-[15px] font-bold transition-colors ${
-                  value === opt ? 'bg-white text-black' : 'text-white/60 hover:bg-white/10'
+                  value === opt ? 'bg-fg text-bg' : 'text-fg/60 hover:bg-fg/10'
                 }`}
               >
                 {opt}
@@ -94,14 +94,14 @@ export const SegmentedToggle: React.FC<{
   items: { value: string; label: string }[];
   onChange: (val: string) => void;
 }> = ({ value, items, onChange }) => (
-  <div className="flex w-full items-center bg-white/5 border border-white/10 rounded-[1.4rem] overflow-hidden p-1">
+  <div className="flex w-full items-center bg-fg/5 border border-fg/10 rounded-[1.4rem] overflow-hidden p-1">
     {items.map((item) => (
       <button
         key={item.value}
         type="button"
         onClick={() => onChange(item.value)}
         className={`flex-1 h-[42px] rounded-[1rem] text-[13px] font-bold tracking-tight transition-all
-          ${value === item.value ? 'bg-white text-black shadow-md' : 'text-white/40 hover:text-white/60'}
+          ${value === item.value ? 'bg-fg text-bg shadow-md' : 'text-fg/40 hover:text-fg/60'}
         `}
       >
         {item.label}
@@ -118,10 +118,10 @@ export const RangeSlider: React.FC<{
   step?: number;
   onChange: (val: number) => void;
 }> = ({ label, value, min, max, step = 1, onChange }) => (
-  <div className="flex flex-col gap-3 p-6 bg-white/5 rounded-[1.8rem] border border-white/5 hover:bg-white/10 transition-colors">
+  <div className="flex flex-col gap-3 p-6 bg-fg/5 rounded-[1.8rem] border border-fg/5 hover:bg-fg/10 transition-colors">
     <div className="flex items-center justify-between">
-      <span className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase">{label}</span>
-      <span className="text-[14px] font-extrabold text-white/80">{value}x</span>
+      <span className="text-[10px] font-bold text-fg/25 tracking-[0.1em] uppercase">{label}</span>
+      <span className="text-[14px] font-extrabold text-fg/80">{value}x</span>
     </div>
     <div className="px-1 flex items-center h-4">
       <input
@@ -131,7 +131,7 @@ export const RangeSlider: React.FC<{
         step={step}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer accent-white"
+        className="w-full h-1.5 bg-fg/10 rounded-full appearance-none cursor-pointer accent-white"
       />
     </div>
   </div>
@@ -146,6 +146,6 @@ export const TextInput: React.FC<{
     value={value}
     onChange={(e) => onChange(e.target.value)}
     placeholder={placeholder}
-    className="bg-white/5 border border-white/5 hover:border-white/10 focus:border-white/30 focus:bg-white/10 rounded-[1.8rem] w-full h-[120px] px-6 py-5 resize-none text-[15px] font-medium text-white placeholder-white/20 focus:outline-none transition-all duration-300 shadow-inner"
+    className="bg-fg/5 border border-fg/5 hover:border-fg/10 focus:border-fg/30 focus:bg-fg/10 rounded-[1.8rem] w-full h-[120px] px-6 py-5 resize-none text-[15px] font-medium text-fg placeholder-white/20 focus:outline-none transition-all duration-300 shadow-inner"
   />
 );
