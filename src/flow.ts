@@ -80,7 +80,10 @@ export const Flow = {
 
   async models(): Promise<ModelOption[]> {
     const r = await fetch('/api/models');
-    if (!r.ok) throw new Error('Gagal memuat daftar model');
+    if (!r.ok) {
+      const t = (await r.text().catch(() => '')).slice(0, 120);
+      throw new Error(`Gagal memuat daftar model (HTTP ${r.status}${t ? ': ' + t : ''})`);
+    }
     return (await r.json()).models as ModelOption[];
   },
 

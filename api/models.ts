@@ -1,4 +1,4 @@
-import { KIE_MODELS } from './_kie';
+import { KIE_MODELS } from './_kie.js';
 
 // Daftar model yang tersedia di UI, sesuai API key yang diset di environment.
 export default function handler(_req: any, res: any) {

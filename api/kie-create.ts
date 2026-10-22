@@ -1,4 +1,4 @@
-import { findKieModel, kieCreateTask, kieUpload, type Ratio } from './_kie';
+import { findKieModel, kieCreateTask, kieUpload, type Ratio } from './_kie.js';
 
 export const config = { maxDuration: 60 };
 

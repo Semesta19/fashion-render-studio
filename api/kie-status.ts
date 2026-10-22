@@ -1,4 +1,4 @@
-import { kieTaskInfo } from './_kie';
+import { kieTaskInfo } from './_kie.js';
 
 export const config = { maxDuration: 30 };
 
