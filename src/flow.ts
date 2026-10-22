@@ -114,8 +114,15 @@ export const Flow = {
   },
 
   generate: {
-    async text(prompt: string, opts?: { systemInstruction?: string }) {
-      return post('/api/enhance', { prompt, systemInstruction: opts?.systemInstruction });
+    async text(
+      prompt: string,
+      opts?: { systemInstruction?: string; referenceImageMediaIds?: string[] }
+    ) {
+      const refs = (opts?.referenceImageMediaIds ?? [])
+        .map((id) => store.get(id))
+        .filter(Boolean) as Media[];
+      const images = await Promise.all(refs.map(shrink));
+      return post('/api/enhance', { prompt, systemInstruction: opts?.systemInstruction, images });
     },
 
     async image(opts: {

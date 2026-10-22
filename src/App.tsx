@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Flow, setProvider, type ModelOption } from 'flow-sdk';
 import {
   SectionLabel,
@@ -11,7 +11,13 @@ import {
 import { CompareSlider, IMG_SIZE_CLASS } from './components/CompareSlider';
 import { HistoryPanel } from './components/HistoryPanel';
 import { resizeBase64, type Img } from './lib/image';
-import { buildPrompt, PRESENTATION_LABELS, type Presentation } from './lib/prompt';
+import {
+  buildPrompt,
+  PRESENTATION_LABELS,
+  SKETCH_ANALYSIS_PROMPT,
+  SKETCH_ANALYSIS_SYSTEM,
+  type Presentation,
+} from './lib/prompt';
 import {
   addHistory,
   clearHistory,
@@ -65,6 +71,10 @@ export default function App() {
   const [textureRepeat, setTextureRepeat] = useState(1);
   const [mirrorTiling, setMirrorTiling] = useState(false);
   const [presentation, setPresentation] = useState<Presentation>('ghost');
+  const [construction, setConstruction] = useState('');
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const analysisRef = useRef<Promise<string> | null>(null);
   const [textureMedia, setTextureMedia] = useState<any>(null);
   const [sketchMedia, setSketchMedia] = useState<any>(null);
   const [customPrompt, setCustomPrompt] = useState('');
@@ -225,6 +235,40 @@ export default function App() {
     }
   };
 
+  const analyzeSketch = (media: any = sketchMedia): Promise<string> => {
+    if (!media) return Promise.resolve('');
+    setIsAnalyzing(true);
+    setAnalysisError(null);
+    const task = Flow.generate
+      .text(SKETCH_ANALYSIS_PROMPT, {
+        systemInstruction: SKETCH_ANALYSIS_SYSTEM,
+        referenceImageMediaIds: [media.mediaId],
+      })
+      .then(({ text }: { text: string }) => {
+        const t = (text || '').trim();
+        setConstruction(t);
+        return t;
+      })
+      .catch((e: any) => {
+        setAnalysisError(`Analisis sketsa gagal (${e.message || 'error'}). Isi konstruksi manual bila perlu.`);
+        return '';
+      })
+      .finally(() => {
+        setIsAnalyzing(false);
+        analysisRef.current = null;
+      });
+    analysisRef.current = task;
+    return task;
+  };
+
+  // Analisis otomatis tiap kali sketsa baru diunggah
+  useEffect(() => {
+    setConstruction('');
+    setAnalysisError(null);
+    if (sketchMedia) analyzeSketch(sketchMedia);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sketchMedia?.mediaId]);
+
   const handleEnhancePrompt = async () => {
     if (!customPrompt.trim()) return;
     setIsEnhancing(true);
@@ -317,6 +361,12 @@ export default function App() {
         referenceIds.push(uploaded.mediaId);
       }
 
+      let spec = construction;
+      if (sketchMedia) {
+        if (analysisRef.current) spec = (await analysisRef.current) || spec;
+        else if (!spec.trim()) spec = await analyzeSketch(sketchMedia);
+      }
+
       const finalPrompt = buildPrompt({
         garmentType,
         hasSketch: !!sketchMedia,
@@ -325,6 +375,7 @@ export default function App() {
         mirrored: mirrorTiling,
         presentation,
         userNotes: customPrompt,
+        construction: spec,
       });
 
       const res = await Flow.generate.image({
@@ -748,6 +799,37 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {sketchMedia && (
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between px-1">
+                <SectionLabel>Konstruksi Sketsa</SectionLabel>
+                <button
+                  onClick={() => analyzeSketch()}
+                  disabled={isAnalyzing}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-fg/5 hover:bg-fg/10 text-fg/40 hover:text-fg transition-all disabled:opacity-50"
+                >
+                  <span className={`material-symbols-outlined text-[16px] ${isAnalyzing ? 'animate-spin' : ''}`}>
+                    {isAnalyzing ? 'progress_activity' : 'refresh'}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-tight">
+                    {isAnalyzing ? 'Menganalisis' : 'Analisis Ulang'}
+                  </span>
+                </button>
+              </div>
+              <TextInput
+                tall
+                value={construction}
+                onChange={setConstruction}
+                placeholder={isAnalyzing ? 'Membaca sketsa…' : 'Hasil analisis jahitan, panel, dan lengan dari sketsa. Bisa Anda koreksi di sini.'}
+              />
+              <p className="text-[11px] text-fg/30 px-1">
+                Dibaca otomatis dari sketsa dan dipakai sebagai acuan render. Koreksi bila ada yang salah, misalnya
+                bagian yang seharusnya tanpa sambungan.
+              </p>
+              {analysisError && <p className="text-[11px] text-red-300/80 px-1">{analysisError}</p>}
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 pb-2">
             <div className="flex items-center justify-between px-1">

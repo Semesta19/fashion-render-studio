@@ -141,11 +141,12 @@ export const TextInput: React.FC<{
   value: string;
   onChange: (val: string) => void;
   placeholder?: string;
-}> = ({ value, onChange, placeholder }) => (
+  tall?: boolean;
+}> = ({ value, onChange, placeholder, tall }) => (
   <textarea
     value={value}
     onChange={(e) => onChange(e.target.value)}
     placeholder={placeholder}
-    className="bg-fg/5 border border-fg/5 hover:border-fg/10 focus:border-fg/30 focus:bg-fg/10 rounded-[1.8rem] w-full h-[120px] px-6 py-5 resize-none text-[15px] font-medium text-fg placeholder-white/20 focus:outline-none transition-all duration-300 shadow-inner"
+    className={`bg-fg/5 border border-fg/5 hover:border-fg/10 focus:border-fg/30 focus:bg-fg/10 rounded-[1.8rem] w-full ${tall ? 'h-[200px] text-[13px]' : 'h-[120px] text-[15px]'} px-6 py-5 resize-none font-medium text-fg placeholder-fg/20 focus:outline-none transition-all duration-300 shadow-inner`}
   />
 );

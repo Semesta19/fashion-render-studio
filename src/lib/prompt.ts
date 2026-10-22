@@ -23,12 +23,48 @@ type Opts = {
   mirrored: boolean;
   presentation: Presentation;
   userNotes: string;
+  construction?: string; // spesifikasi konstruksi hasil analisis sketsa
 };
 
 // Anggap gambar tekstur mewakili kain seluas ±40 cm. 1 ulangan = 40/repeat cm.
 const SWATCH_CM = 40;
 
+export const SKETCH_ANALYSIS_SYSTEM =
+  'You are a senior technical fashion designer and pattern maker who reads flat sketches precisely.';
+
+export const SKETCH_ANALYSIS_PROMPT = `Analyze the attached garment flat sketch and write a construction spec for a photographer/AI to reproduce it exactly.
+Rules for reading the sketch: solid outline = silhouette; interior solid lines = real seams/panel edges; dashed lines = topstitching; soft grey shading = fabric volume, folds or gathers (NOT seams, NOT a different color).
+Output plain text, max 130 words, in English, as short lines per view (e.g. FRONT:, BACK:):
+- Garment type and which views are drawn.
+- Pattern pieces and how they join. State explicitly where a seam does NOT exist, e.g. if the body and sleeve are one continuous cut-on piece say so: "no armhole seam, no shoulder-to-sleeve seam"; say if there is no visible side seam.
+- Sleeve type (set-in, raglan, kimono/cut-on, drop shoulder), length, volume, gathers, cuff shape.
+- Neckline, collar, closure (placement, asymmetry, number of buttons), yoke, darts, pleats, pockets, hem shape.
+Only describe what is visible; write "unclear" for unclear parts. Do not mention sketch colors. No preface.`;
+
+const MAX_PROMPT = 4800; // aman untuk model dengan batas 5000 karakter (mis. Flux 2)
+
 export function buildPrompt(o: Opts): string {
+  let out = buildFull(o);
+  if (out.length > MAX_PROMPT) {
+    // 1) pangkas catatan desainer dulu, 2) baru spesifikasi konstruksi
+    const over = out.length - MAX_PROMPT;
+    const notes = o.userNotes.trim();
+    const cut = Math.min(notes.length, over + 20);
+    out = buildFull({ ...o, userNotes: notes.slice(0, Math.max(0, notes.length - cut)) });
+    if (out.length > MAX_PROMPT) {
+      const spec = (o.construction || '').trim().slice(0, 1100);
+      const over2 = out.length - MAX_PROMPT;
+      out = buildFull({
+        ...o,
+        userNotes: '',
+        construction: spec.slice(0, Math.max(300, spec.length - over2 - 20)),
+      });
+    }
+  }
+  return out;
+}
+
+function buildFull(o: Opts): string {
   const n = Math.max(1, Math.round(o.repeat));
   const tileCm = SWATCH_CM / n;
   const tileCmTxt = tileCm >= 10 ? tileCm.toFixed(0) : tileCm.toFixed(1);
@@ -68,10 +104,16 @@ export function buildPrompt(o: Opts): string {
         `- Reproduce the exact silhouette and proportions of the sketch: overall length, width, shoulder line, waist or drop-waist position, sleeve length and shape, cuff shape, neckline shape and depth, collar, hem shape and hem width, volume and flare.\n` +
         `- Reproduce EVERY construction detail drawn in the sketch at the same position and size: each seam line, panel and special cut, yoke, godet, gather, pleat, dart, tuck, ruffle, slit, placket, button, zipper, drawstring/tie, pocket, binding/trim, topstitching, and any piece cut from a different fabric or in a different grain/pattern direction.\n` +
         `- Special panels, color blocking or fabric cuts that differ from a standard garment of this type must appear exactly as in the sketch. Do NOT replace them with a generic version of this garment.\n` +
-        `- Do not add, remove, simplify, move or invent any seam, panel, trim or design element that is not in the sketch. When a detail is unclear, keep it minimal and symmetrical.\n` +
+        `- SEAM RULE: a seam, armhole line, side seam, panel edge or topstitch exists ONLY if it is drawn in the sketch. Where the sketch shows body and sleeve as one continuous shape, make them one continuous cut-on piece with no joining seam. Soft grey shading in the sketch means fabric volume or gathers, not seams.\n` +
+        `- Do not add, remove, simplify, move or invent any seam, panel, trim or design element that is not in the sketch.\n` +
         `- If the sketch shows several views (e.g. front and back), render the same views in the same left-to-right order, each as a complete garment at equal size. If it shows one view, render only that single view. Never add extra views.\n` +
         `- Keep the garment centered and fully inside the frame with a comfortable margin; nothing cropped.`
     );
+  }
+
+  const spec = (o.construction || '').trim().slice(0, 1100);
+  if (o.hasSketch && spec) {
+    sections.push(`CONSTRUCTION SPEC (verified from the sketch, follow literally):\n${spec}`);
   }
 
   if (o.hasTexture) {

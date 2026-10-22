@@ -5,17 +5,24 @@ export default async function handler(req: any, res: any) {
   try {
     const key = process.env.GEMINI_API_KEY;
     if (!key) throw new Error('GEMINI_API_KEY belum diset');
-    const { prompt, systemInstruction } = req.body || {};
+    const { prompt, systemInstruction, images = [] } = req.body || {};
     if (!prompt) return res.status(400).json({ error: 'Prompt kosong' });
 
     const r = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_TEXT_MODEL || 'gemini-2.5-flash'}:generateContent`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
         body: JSON.stringify({
           systemInstruction: systemInstruction ? { parts: [{ text: systemInstruction }] } : undefined,
-          contents: [{ parts: [{ text: prompt }] }],
+          contents: [
+            {
+              parts: [
+                ...images.map((im: any) => ({ inline_data: { mime_type: im.mimeType, data: im.data } })),
+                { text: prompt },
+              ],
+            },
+          ],
         }),
       }
     );
