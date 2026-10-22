@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Flow, setProvider } from 'flow-sdk';
+import { Flow, setProvider, type ModelOption } from 'flow-sdk';
 import {
   SectionLabel,
   PillButton,
@@ -33,7 +33,7 @@ const GARMENT_LABELS: Record<string, string> = {
 };
 
 type SupportedRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
-type ImageProvider = 'gemini' | 'openai';
+type ImageProvider = string;
 type ResultState = Img & { sketch: Img | null };
 
 /** Sanitize a filename for safe download */
@@ -73,7 +73,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [aspectRatio, setAspectRatio] = useState<SupportedRatio>('3:4');
   const [showControls, setShowControls] = useState(true);
-  const [provider, setProviderState] = useState<ImageProvider>('gemini');
+  const [provider, setProviderState] = useState<ImageProvider>('');
+  const [models, setModels] = useState<ModelOption[]>([]);
+  const [modelsError, setModelsError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'result' | 'compare'>('result');
 
   const [history, setHistory] = useState<HistoryMeta[]>([]);
@@ -89,6 +91,19 @@ export default function App() {
 
   useEffect(() => {
     listHistory().then(setHistory).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    Flow.models()
+      .then((list) => {
+        setModels(list);
+        if (list.length === 0) {
+          setModelsError('Belum ada API key. Isi KIE_API_KEY (atau GEMINI/OPENAI) di environment.');
+        } else {
+          setProviderState((cur) => (list.some((m) => m.id === cur) ? cur : list[0].id));
+        }
+      })
+      .catch((e) => setModelsError(e.message || 'Gagal memuat daftar model'));
   }, []);
 
   useEffect(() => {
@@ -268,6 +283,7 @@ export default function App() {
 
   const handleGenerate = async () => {
     setError(null);
+    if (!provider) return setError(modelsError || 'Model gambar belum dipilih.');
     if (!sketchMedia && !customPrompt.trim()) {
       return setError('Sediakan sketsa atau deskripsi desain.');
     }
@@ -313,6 +329,11 @@ export default function App() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const modelLabel = (id: string) => {
+    const m = models.find((x) => x.id === id);
+    return m ? `${m.group.replace('kie.ai · ', '')} · ${m.label}` : id || 'Memuat…';
   };
 
   const handleSelectHistory = async (id: string) => {
@@ -599,14 +620,16 @@ export default function App() {
 
             <div className="flex flex-col gap-1.5">
               <p className="text-[10px] font-bold text-white/25 tracking-[0.1em] uppercase px-1">Model Gambar</p>
-              <SegmentedToggle
-                value={provider}
-                onChange={(v) => setProviderState(v as ImageProvider)}
-                items={[
-                  { value: 'gemini', label: 'Nano Banana' },
-                  { value: 'openai', label: 'GPT Image' },
-                ]}
+              <FieldDropdown
+                label="Pilih model"
+                value={modelLabel(provider)}
+                options={models.map((m) => modelLabel(m.id))}
+                onChange={(v) => {
+                  const m = models.find((x) => modelLabel(x.id) === v);
+                  if (m) setProviderState(m.id);
+                }}
               />
+              {modelsError && <p className="text-[11px] text-red-300/80 px-1">{modelsError}</p>}
             </div>
           </div>
 

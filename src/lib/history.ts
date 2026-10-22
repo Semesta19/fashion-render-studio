@@ -3,7 +3,7 @@ import type { Img } from './image';
 export type HistoryMeta = {
   id: string;
   createdAt: number;
-  provider: 'gemini' | 'openai';
+  provider: string; // 'gemini' | 'openai' | 'kie:<model-id>'
   garmentType: string;
   aspectRatio: string;
   prompt: string;

@@ -67,7 +67,7 @@ export const HistoryPanel: React.FC<{
                     {garmentLabels[it.garmentType] || it.garmentType}
                   </p>
                   <p className="text-[10px] font-bold text-white/30 uppercase tracking-wide truncate">
-                    {PROVIDER_LABEL[it.provider]} ·{' '}
+                    {PROVIDER_LABEL[it.provider] ?? it.provider.replace(/^kie:/, '')} ·{' '}
                     {new Date(it.createdAt).toLocaleString('id-ID', {
                       day: '2-digit',
                       month: 'short',

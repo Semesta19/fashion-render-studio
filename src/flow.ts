@@ -1,4 +1,5 @@
-export type Provider = 'gemini' | 'openai';
+export type Provider = string; // 'gemini' | 'openai' | 'kie:<model-id>'
+export type ModelOption = { id: string; label: string; group: string; maxRefs: number };
 type Media = { mediaId: string; base64: string; mimeType: string; type: string; name?: string };
 
 let provider: Provider = 'gemini';
@@ -37,11 +38,50 @@ async function post(url: string, body: unknown) {
   return json;
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function urlToBase64(url: string): Promise<{ base64: string; mimeType: string }> {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('Gagal mengunduh hasil dari kie.ai');
+  const blob = await r.blob();
+  const base64 = await new Promise<string>((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res((fr.result as string).split(',')[1]);
+    fr.onerror = () => rej(new Error('Gagal membaca hasil'));
+    fr.readAsDataURL(blob);
+  });
+  return { base64, mimeType: blob.type || 'image/png' };
+}
+
+async function generateKie(model: string, prompt: string, aspectRatio: string, images: unknown[]) {
+  const { taskId } = await post('/api/kie-create', { model, prompt, aspectRatio, images });
+  const started = Date.now();
+  await sleep(3000);
+  while (Date.now() - started < 10 * 60 * 1000) {
+    const r = await fetch(`/api/kie-status?taskId=${encodeURIComponent(taskId)}`);
+    const j: any = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || `Server error ${r.status}`);
+    if (j.state === 'fail') throw new Error(j.error || 'Generasi gagal');
+    if (j.state === 'success') {
+      if (j.base64) return { base64: j.base64 as string, mimeType: (j.mimeType as string) || 'image/png' };
+      return urlToBase64(j.url); // gambar besar: unduh langsung dari browser
+    }
+    await sleep(2500);
+  }
+  throw new Error('Waktu tunggu habis (>10 menit) menunggu hasil dari kie.ai');
+}
+
 export const Flow = {
   async upload({ base64, mimeType, name }: { base64: string; mimeType: string; name?: string }) {
     const mediaId = crypto.randomUUID();
     store.set(mediaId, { mediaId, base64, mimeType, type: 'image', name });
     return { mediaId };
+  },
+
+  async models(): Promise<ModelOption[]> {
+    const r = await fetch('/api/models');
+    if (!r.ok) throw new Error('Gagal memuat daftar model');
+    return (await r.json()).models as ModelOption[];
   },
 
   media: {
@@ -85,6 +125,9 @@ export const Flow = {
         .map((id) => store.get(id))
         .filter(Boolean) as Media[];
       const images = await Promise.all(refs.map(shrink));
+      if (provider.startsWith('kie:')) {
+        return generateKie(provider.slice(4), opts.prompt, opts.aspectRatio, images);
+      }
       return post('/api/generate', {
         provider,
         prompt: opts.prompt,
